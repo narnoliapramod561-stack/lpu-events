@@ -1,0 +1,8 @@
+name: lpu-events
+
+# Supabase local development is managed via the Supabase CLI ('supabase start').
+# Do NOT recreate the Supabase service stack here.
+services:
+  development-helper:
+    image: alpine:latest
+    command: echo "LPU Events development foundation Docker Compose environment ready."

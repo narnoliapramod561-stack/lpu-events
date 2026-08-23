@@ -1,0 +1,36 @@
+{
+  "name": "lpu-events-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LPU Events Monorepo",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:student": "npm run dev -w @lpu-events/student-web",
+    "dev:admin": "npm run dev -w @lpu-events/admin-web",
+    "preview:student": "npm run preview -w @lpu-events/student-web",
+    "preview:admin": "npm run preview -w @lpu-events/admin-web",
+    "worker:email": "npx tsx --env-file=.env scripts/outbox_worker.ts --loop",
+    "worker:outbox": "npx tsx --env-file=.env scripts/outbox_worker.ts",
+    "build": "npm run build:student && npm run build:admin",
+    "build:student": "npm run build -w @lpu-events/student-web",
+    "build:admin": "npm run build -w @lpu-events/admin-web",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lhci": "lhci autorun --config=./lighthouserc.json"
+  },
+  "devDependencies": {
+    "@lhci/cli": "^0.15.1",
+    "jsdom": "^29.1.1",
+    "typescript": "^5.5.4",
+    "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "@types/qrcode": "^1.5.6",
+    "qrcode": "^1.5.4"
+  }
+}

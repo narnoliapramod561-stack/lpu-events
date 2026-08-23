@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from './supabase';
-import { trackAdminAction } from '@lpu-events/shared/telemetry';
+import { trackAdminAction } from '@lpu-events/shared';
 
 export interface AdminProfile {
   id: string;

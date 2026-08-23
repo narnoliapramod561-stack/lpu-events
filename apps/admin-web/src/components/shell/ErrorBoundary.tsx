@@ -1,5 +1,5 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
-import { captureSafeException } from '@lpu-events/shared/telemetry';
+import { captureSafeException } from '@lpu-events/shared';
 
 interface Props {
   children: ReactNode;

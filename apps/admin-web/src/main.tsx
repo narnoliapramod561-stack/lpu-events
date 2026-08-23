@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import { ErrorBoundary } from './components/shell/ErrorBoundary.tsx';
-import { initPostHog, initClarity, initSentry } from '@lpu-events/shared/telemetry';
+import { initPostHog, initClarity, initSentry } from '@lpu-events/shared';
 import './index.css';
 
 // Initialize production observability & telemetry for Admin Website

@@ -566,8 +566,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ isExpiredSession = false }
                       e.target.style.boxShadow = '0 0 0 3px rgba(255, 107, 0, 0.15)';
                     }}
                     onBlur={(e) => {
-                      e.target.style.borderColor = '#d4a896';
-                      e.target.style.boxShadow = 'none';
+                      e.target.style.borderColor = digit ? '#ff6b00' : '#d4a896';
+                      e.target.style.boxShadow = digit ? '0 0 0 3px rgba(255, 107, 0, 0.12)' : 'none';
                     }}
                   />
                 ))}

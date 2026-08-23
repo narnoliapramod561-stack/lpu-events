@@ -9,14 +9,11 @@ out/
 
 # Local environment variables and secrets
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-*.local
-
-# Exception for environment template
+.env.*
 !.env.example
+*.local
+supabase/functions/.env
+scripts/.env
 
 # Supabase local files
 .supabase/

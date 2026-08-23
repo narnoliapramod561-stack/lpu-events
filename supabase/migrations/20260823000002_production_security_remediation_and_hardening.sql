@@ -173,6 +173,7 @@ end;
 $$ language plpgsql;
 
 -- 1.4 Patch cleanup_processed_outbox_events
+drop function if exists public.cleanup_processed_outbox_events(integer);
 create or replace function public.cleanup_processed_outbox_events(
   p_retention_days integer default 7
 )

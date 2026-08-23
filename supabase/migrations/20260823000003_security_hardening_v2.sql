@@ -18,13 +18,16 @@
 -- ==============================================================================
 
 -- Revoke all execution grants from public, anon, and generic authenticated roles
-revoke execute on function public.claim_outbox_events(integer) from public, anon, authenticated;
-revoke execute on function public.claim_outbox_events(integer, text) from public, anon, authenticated;
-revoke execute on function public.complete_outbox_event(uuid) from public, anon, authenticated;
-revoke execute on function public.complete_outbox_event(uuid, text) from public, anon, authenticated;
-revoke execute on function public.fail_outbox_event(uuid, text) from public, anon, authenticated;
-revoke execute on function public.fail_outbox_event(uuid, text, text) from public, anon, authenticated;
-revoke execute on function public.cleanup_processed_outbox_events(integer) from public, anon, authenticated;
+do $$
+begin
+  begin execute 'revoke execute on function public.claim_outbox_events(integer) from public, anon, authenticated'; exception when undefined_function then null; end;
+  begin execute 'revoke execute on function public.claim_outbox_events(integer, text) from public, anon, authenticated'; exception when undefined_function then null; end;
+  begin execute 'revoke execute on function public.complete_outbox_event(uuid) from public, anon, authenticated'; exception when undefined_function then null; end;
+  begin execute 'revoke execute on function public.complete_outbox_event(uuid, text) from public, anon, authenticated'; exception when undefined_function then null; end;
+  begin execute 'revoke execute on function public.fail_outbox_event(uuid, text) from public, anon, authenticated'; exception when undefined_function then null; end;
+  begin execute 'revoke execute on function public.fail_outbox_event(uuid, text, text) from public, anon, authenticated'; exception when undefined_function then null; end;
+  begin execute 'revoke execute on function public.cleanup_processed_outbox_events(integer) from public, anon, authenticated'; exception when undefined_function then null; end;
+end $$;
 revoke execute on function public.retry_outbox_event(uuid) from public, anon;
 
 -- Drop previous overloaded signatures to avoid confusion

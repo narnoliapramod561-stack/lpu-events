@@ -14,6 +14,8 @@
     "preview:admin": "npm run preview -w @lpu-events/admin-web",
     "worker:email": "npx tsx --env-file=.env scripts/outbox_worker.ts --loop",
     "worker:outbox": "npx tsx --env-file=.env scripts/outbox_worker.ts",
+    "worker:r2-cleanup": "npx tsx --env-file=.env scripts/r2_cleanup_worker.ts --loop",
+    "migrate:images-to-r2": "npx tsx --env-file=.env scripts/migrate_images_to_r2.ts",
     "build": "npm run build:student && npm run build:admin",
     "build:student": "npm run build -w @lpu-events/student-web",
     "build:admin": "npm run build -w @lpu-events/admin-web",

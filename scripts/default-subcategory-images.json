@@ -1,0 +1,291 @@
+{
+  "version": 1,
+  "output": {
+    "width": 1920,
+    "height": 800,
+    "format": "webp",
+    "quality": 88
+  },
+  "entries": [
+    {
+      "category": "academics",
+      "subcategory": "seminar",
+      "title": "Seminar"
+    },
+    {
+      "category": "academics",
+      "subcategory": "guest-lecture",
+      "title": "Guest Lecture"
+    },
+    {
+      "category": "academics",
+      "subcategory": "workshop",
+      "title": "Workshop"
+    },
+    {
+      "category": "academics",
+      "subcategory": "internship",
+      "title": "Internship"
+    },
+    {
+      "category": "academics",
+      "subcategory": "capstone",
+      "title": "Capstone"
+    },
+    {
+      "category": "academics",
+      "subcategory": "others",
+      "title": "Others"
+    },
+    {
+      "category": "cultural",
+      "subcategory": "music",
+      "title": "Music"
+    },
+    {
+      "category": "cultural",
+      "subcategory": "dance",
+      "title": "Dance"
+    },
+    {
+      "category": "cultural",
+      "subcategory": "theatre",
+      "title": "Theatre"
+    },
+    {
+      "category": "cultural",
+      "subcategory": "social-media",
+      "title": "Social Media"
+    },
+    {
+      "category": "cultural",
+      "subcategory": "others",
+      "title": "Others"
+    },
+    {
+      "category": "innovation",
+      "subcategory": "hackathon",
+      "title": "Hackathon"
+    },
+    {
+      "category": "innovation",
+      "subcategory": "technical-events",
+      "title": "Technical Events"
+    },
+    {
+      "category": "innovation",
+      "subcategory": "project-expo",
+      "title": "Project Expo"
+    },
+    {
+      "category": "innovation",
+      "subcategory": "workshop",
+      "title": "Workshop"
+    },
+    {
+      "category": "innovation",
+      "subcategory": "seminar",
+      "title": "Seminar"
+    },
+    {
+      "category": "innovation",
+      "subcategory": "others",
+      "title": "Others"
+    },
+    {
+      "category": "entrepreneurship",
+      "subcategory": "b-plan",
+      "title": "B Plan"
+    },
+    {
+      "category": "entrepreneurship",
+      "subcategory": "pitch-fest",
+      "title": "Pitch Fest"
+    },
+    {
+      "category": "entrepreneurship",
+      "subcategory": "conclave",
+      "title": "Conclave"
+    },
+    {
+      "category": "entrepreneurship",
+      "subcategory": "bootcamp",
+      "title": "Bootcamp"
+    },
+    {
+      "category": "entrepreneurship",
+      "subcategory": "panel-discussion",
+      "title": "Panel Discussion"
+    },
+    {
+      "category": "entrepreneurship",
+      "subcategory": "expo",
+      "title": "Expo"
+    },
+    {
+      "category": "entrepreneurship",
+      "subcategory": "seminar",
+      "title": "Seminar"
+    },
+    {
+      "category": "entrepreneurship",
+      "subcategory": "others",
+      "title": "Others"
+    },
+    {
+      "category": "community-services",
+      "subcategory": "donation-drives",
+      "title": "Donation Drives"
+    },
+    {
+      "category": "community-services",
+      "subcategory": "environment",
+      "title": "Environment"
+    },
+    {
+      "category": "community-services",
+      "subcategory": "healthcare",
+      "title": "Healthcare"
+    },
+    {
+      "category": "community-services",
+      "subcategory": "others",
+      "title": "Others"
+    },
+    {
+      "category": "day-celebrations",
+      "subcategory": "national-days",
+      "title": "National Days"
+    },
+    {
+      "category": "day-celebrations",
+      "subcategory": "cultural-days",
+      "title": "Cultural Days"
+    },
+    {
+      "category": "day-celebrations",
+      "subcategory": "fest-days",
+      "title": "Fest Days"
+    },
+    {
+      "category": "day-celebrations",
+      "subcategory": "awareness-days",
+      "title": "Awareness Days"
+    },
+    {
+      "category": "day-celebrations",
+      "subcategory": "others",
+      "title": "Others"
+    },
+    {
+      "category": "co-curricular",
+      "subcategory": "competitions",
+      "title": "Competitions"
+    },
+    {
+      "category": "co-curricular",
+      "subcategory": "skill-dev",
+      "title": "Skill Dev"
+    },
+    {
+      "category": "co-curricular",
+      "subcategory": "certifications",
+      "title": "Certifications"
+    },
+    {
+      "category": "co-curricular",
+      "subcategory": "training",
+      "title": "Training"
+    },
+    {
+      "category": "co-curricular",
+      "subcategory": "others",
+      "title": "Others"
+    },
+    {
+      "category": "student-clubs",
+      "subcategory": "tech-clubs",
+      "title": "Tech Clubs"
+    },
+    {
+      "category": "student-clubs",
+      "subcategory": "cultural-clubs",
+      "title": "Cultural Clubs"
+    },
+    {
+      "category": "student-clubs",
+      "subcategory": "startup-clubs",
+      "title": "Startup Clubs"
+    },
+    {
+      "category": "student-clubs",
+      "subcategory": "literary-clubs",
+      "title": "Literary Clubs"
+    },
+    {
+      "category": "student-clubs",
+      "subcategory": "others",
+      "title": "Others"
+    },
+    {
+      "category": "ncc",
+      "subcategory": "camps",
+      "title": "Camps"
+    },
+    {
+      "category": "ncc",
+      "subcategory": "training",
+      "title": "Training"
+    },
+    {
+      "category": "ncc",
+      "subcategory": "parades",
+      "title": "Parades"
+    },
+    {
+      "category": "ncc",
+      "subcategory": "others",
+      "title": "Others"
+    },
+    {
+      "category": "nss",
+      "subcategory": "social-work",
+      "title": "Social Work"
+    },
+    {
+      "category": "nss",
+      "subcategory": "campaigns",
+      "title": "Campaigns"
+    },
+    {
+      "category": "nss",
+      "subcategory": "awareness-drives",
+      "title": "Awareness Drives"
+    },
+    {
+      "category": "nss",
+      "subcategory": "others",
+      "title": "Others"
+    },
+    {
+      "category": "fashion",
+      "subcategory": "shows",
+      "title": "Shows"
+    },
+    {
+      "category": "fashion",
+      "subcategory": "exhibitions",
+      "title": "Exhibitions"
+    },
+    {
+      "category": "fashion",
+      "subcategory": "others",
+      "title": "Others"
+    },
+    {
+      "category": "others",
+      "subcategory": "miscellaneous",
+      "title": "Miscellaneous"
+    }
+  ]
+}

@@ -2,7 +2,7 @@
  * defaults.ts
  * Comprehensive Default Image Asset Registry for LPU Events
  * Maps Categories and Subcategories (by UUID, Slug Key, and Display Name)
- * to dedicated production-quality 16:9 widescreen WebP assets.
+ * to dedicated production-quality 2.4:1 (1920x800) WebP assets.
  */
 
 export interface SubcategoryImageMeta {
@@ -155,7 +155,7 @@ export function resolveDefaultEventImage(eventOrMeta: any): string {
   const subId = eventOrMeta.subcategory_id;
   if (subId && SUBCATEGORY_UUID_MAP[subId]) {
     const { categoryKey, subcategoryKey } = SUBCATEGORY_UUID_MAP[subId];
-    return `/defaults/events/${categoryKey}_${subcategoryKey}.webp`;
+    return `/defaults/events/subcategories/${categoryKey}_${subcategoryKey}.webp`;
   }
 
   // 2. Direct subcategories relation key/name lookup
@@ -169,7 +169,7 @@ export function resolveDefaultEventImage(eventOrMeta: any): string {
   if (catKey && subKey && typeof subKey === 'string') {
     const cleanSub = subKey.toLowerCase().trim().replace(/[\s_]+/g, '-');
     const cleanCat = String(catKey).toLowerCase().trim().replace(/[\s_]+/g, '-');
-    return `/defaults/events/${cleanCat}_${cleanSub}.webp`;
+    return `/defaults/events/subcategories/${cleanCat}_${cleanSub}.webp`;
   }
 
   // 3. Category level fallback

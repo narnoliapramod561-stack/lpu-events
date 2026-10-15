@@ -422,3 +422,56 @@ Track separately:
 Alert when eligible steady-state CDN cache hit rate falls below 99.9% over the defined measurement window, when a known snapshot path is bypassing cache, when Supabase egress exceeds 50% of its monthly allowance, or when R2/Workers/analytics quotas reach the warning threshold. Diagnose MISS and BYPASS reasons before increasing TTL or adding infrastructure.
 
 Release is blocked until production-like tests prove that 5,000-student traffic patterns can browse Home, Explore, details, categories and past-event shards without direct client-origin Supabase reads; that a burst of simultaneous requests causes one publisher build per resource/version; and that the edge hit ratio approaches the 99.9% target on the warmed steady-state workload.
+
+
+## 17. Image delivery cost review — controlling policy
+
+This section supersedes any earlier wording that could imply image bandwidth has a monthly R2 free quota or that a 99.9% cache-hit rate is what makes bandwidth free.
+
+### What is guaranteed by R2 pricing
+
+- Public image bytes delivered directly through the existing Cloudflare R2 Standard bucket/custom domain `images.lpuevents.live` have **$0 internet egress cost with no egress quota** under current R2 pricing. Cache hits improve latency and reduce R2 Class B reads; they do not create the zero-egress benefit.
+- R2 still has finite free allowances for Standard storage (10 GB-month), Class A operations (1 million/month), and Class B operations (10 million/month). Usage above those allowances is billable. Therefore the defensible statement is “image egress is free; total media storage/operations remain free when within the included allowances,” not “all R2 activity is unlimited and always bill-free.”
+- Use Standard storage only for public image objects. Infrequent Access has retrieval charges. Do not put images through a metered transformation/streaming product or another paid proxy.
+
+### Production media path
+
+Use the existing `lpu-events-images` bucket and `images.lpuevents.live`; do not create an additional bucket merely for image delivery. Keep JSON snapshots separate if needed. The public path is:
+
+```text
+Admin/Organizer
+  -> image validation + WebP optimization
+  -> authenticated r2-upload Edge Function
+  -> R2 Standard (immutable image object with cache metadata)
+  -> images.lpuevents.live
+  -> Cloudflare WAF + CDN + Smart Tiered Cache
+  -> Student Website / Native Android
+```
+
+Normal student image views must not pass through a Worker, Supabase Storage, a paid image-transform service, or a third-party image host. Cloudflare's native cache lock collapses simultaneous cold requests for the same asset within a single Cloudflare location; Smart Tiered Cache reduces misses that reach R2. These features improve origin efficiency but do not make Class B operations unlimited.
+
+### Cache and URL contract
+
+- Store each actual image derivative as a real R2 object, and publish its URL only after upload verification. Use unique immutable keys based on content hash, context, pipeline version, and variant. Use `Cache-Control: public, max-age=31536000, immutable` and correct MIME metadata.
+- Keep public image URLs queryless and deterministic. Variants use distinct paths; no transformation query parameters or timestamp cache-busters. Cache rules must be scoped to `images.lpuevents.live` and approved image paths, with GET/HEAD cacheable and other methods blocked. Disable public `r2.dev` access so it cannot bypass the configured custom domain.
+- Verify a cold request as a possible `MISS` and the second identical request as `HIT`. Confirm real `CF-Cache-Status`/Cloudflare analytics and actual object metadata; the presence of a Cache Rule alone does not prove a hit.
+- Remove production Unsplash/third-party fallback image URLs. Bundle generic placeholder artwork in the Android app and use first-party static/immutable placeholders on the website. Restrict production media publication to verified first-party image URLs.
+- A production R2 upload failure must fail closed. Do not fall back silently to Supabase Storage. Do not register a media record as `READY` if R2 credentials are absent or the object upload has not succeeded.
+- Fix the shared image-storage adapter before using it: the current `CloudflareR2StorageProvider.put()` and `deleteMany()` implementation is a success-returning stub, not a real R2 client. Keep it unused or make it throw until a real, tested implementation replaces it.
+- The current upload path appears to send one primary image blob while the web resolver can generate mobile/tablet derivative paths. Either upload and verify each derivative or stop advertising that variant. Missing variants create repeated misses/404s and fail the responsive-image contract.
+
+### Cost and quota guardrails
+
+- Reconcile actual bucket usage, including orphan objects and every image variant; database row totals alone are not a reliable measure. Set an internal storage ceiling (initial proposal: stop new media uploads by 8 GB-month, with warning at 5 GB) and keep headroom from the 10 GB free allowance.
+- Target less than 50% of the monthly Class A and Class B allowances during normal operation; alert at 50% and start safe degradation well before quota exhaustion. Use Cloudflare WAF/rate-limit rules available on the current plan to block abusive paths, query-string cache-busting and unsupported methods. Keep all image view traffic on immutable, canonical URLs.
+- The 99.9% CDN hit ratio remains a measurable steady-state objective, not a guarantee. It is mainly a latency and R2-read-operation objective. The stronger product rule is that public image bytes have no R2 egress charge, and the media system fails closed on uploads when it cannot stay inside the storage budget.
+- No architecture using a usage-billed R2 bucket can guarantee a $0 total invoice under arbitrary/unbounded traffic if billable storage/operation quotas are exceeded. If zero invoice under all traffic is a literal requirement, use a finite-asset static-delivery plan such as Cloudflare Pages static assets and accept its Free-plan constraints (20,000 files per site, 25 MiB per file and 500 builds/month); new uploaded assets must be published by bounded deployments. This is a different trade-off and must be approved before replacing R2 delivery.
+
+### Mandatory image release gates
+
+1. R2 credential absence or failed object upload never returns a successful/READY media record.
+2. No production image fallback to Supabase Storage or third-party image hosts.
+3. Every advertised responsive variant exists in R2 and has the correct MIME/cache metadata.
+4. The R2 custom domain is cached and Smart Tiered Cache is enabled; first cold `MISS` followed by a repeat `HIT` is verified.
+5. Actual R2 storage and Class A/B usage are monitored against budgets; 5,000-student tests measure combined Student Website + Android traffic.
+6. Documentation distinguishes zero image egress charges from the finite storage/operation free allowances.

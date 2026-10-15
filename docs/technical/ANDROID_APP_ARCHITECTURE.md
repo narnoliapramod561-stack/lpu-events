@@ -114,7 +114,7 @@ Create a dedicated public snapshot bucket in the existing Cloudflare account, wi
 - Use immutable, content/version-addressed object names for snapshot payloads. A new payload must never overwrite an immutable object.
 - Use a small mutable manifest/current pointer with `Cache-Control: public, max-age=60, stale-while-revalidate=300, stale-if-error=86400`. Do not combine `s-maxage` with `stale-while-revalidate`.
 - Publish the immutable payload first and the mutable manifest last. Use targeted purge for the manifest after a successful publication where practical; TTL and stale-if-error are fallback behavior, not the primary update mechanism.
-- Enable Cloudflare Tiered Cache on the snapshot hostname where available on the existing Free plan. Verify actual `CF-Cache-Status` values; a Cache Rule alone is not proof of a HIT.
+- Enable Cloudflare Tiered Cache on the snapshot hostname (the standard Tiered Cache topology is available on Free at the time of this design). Use Cloudflare's native request collapsing for same-key cold misses rather than routing every read through a custom Worker. Verify actual `CF-Cache-Status` values; a Cache Rule alone is not proof of a HIT.
 - CDN and R2 caches are disposable. PostgreSQL is still authoritative.
 
 Recommended object families:
@@ -380,7 +380,7 @@ Rules:
 2. A cache miss on the read path does **not** trigger snapshot generation. Snapshot payloads already exist in R2 before their manifest references them.
 3. Snapshot generation is single-flight on the publisher side: use a unique outbox work key such as `resource + target_version`, an atomic claim/lease, and idempotent writes. Multiple invalidation events for the same target version are coalesced into one build.
 4. If a published pointer is missing, malformed or temporarily unavailable, keep the previous valid local snapshot and report the failure to monitoring. Do not issue a direct Supabase query from the student client as a fallback. A first-install cold start shows a retryable loading/error state rather than inventing empty content.
-5. Concurrent cold CDN requests may still cause more than one edge data centre to fetch the same object from R2; CDN caching and Tiered Cache reduce this. **The guarantee is one database-backed snapshot build per resource/version, not a mathematically guaranteed single HTTP packet across the entire global CDN.** R2 reads have free internet egress; they must still be kept within the R2 operation allowance.
+5. Use Cloudflare's native cache request-collapsing behavior: for simultaneous cache misses for the same asset at the same Cloudflare data center, only the first request goes to the origin; the other requests wait and receive the resulting response. Enable Tiered Cache so edge misses check the upper tier before reaching R2, reducing duplicate origin fills across locations. This is per asset/cache key and per edge location, not a mathematical guarantee of exactly one origin request worldwide during a global cold start. Regardless, a miss goes to a pre-generated R2 object—not Supabase. R2 internet egress is free, but R2 read operations remain quota-limited.
 6. Use stale-while-revalidate for mutable manifest responses so requests receive the old manifest during background revalidation. Keep immutable content URLs unchanged forever; a published change gets a new URL and a new manifest.
 7. Never use a timed polling loop, per-screen Supabase request, Realtime subscription, cache-busting query string, or random URL that defeats shared-cache reuse.
 

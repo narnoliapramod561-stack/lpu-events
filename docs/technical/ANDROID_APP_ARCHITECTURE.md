@@ -475,3 +475,57 @@ Normal student image views must not pass through a Worker, Supabase Storage, a p
 4. The R2 custom domain is cached and Smart Tiered Cache is enabled; first cold `MISS` followed by a repeat `HIT` is verified.
 5. Actual R2 storage and Class A/B usage are monitored against budgets; 5,000-student tests measure combined Student Website + Android traffic.
 6. Documentation distinguishes zero image egress charges from the finite storage/operation free allowances.
+
+
+## 18. Final native-app image architecture — read-only, same as the website
+
+**Scope lock:** the Android app only displays images. It does not upload, edit, resize, transform, delete, or register media. Do not include upload screens, upload code, image-write SDK permissions, R2 credentials, image processing jobs, or calls to `r2-upload` in the Android application.
+
+### Reuse the website's existing delivery URL
+
+The Student Website already resolves image paths through `packages/shared/src/images/url.ts` and the configured `VITE_R2_PUBLIC_URL`, whose production default is `https://images.lpuevents.live`. The corresponding public delivery hostname is backed by the existing `lpu-events-images` R2 bucket/custom domain. The Android app must read the same canonical public image URL/object key stored by the platform; it must not create a second image bucket, proxy, or duplicate copy of every image.
+
+Use the exact persisted/verified URL or object key. Do not build a mobile variant URL by appending a query string or assuming that replacing `_desktop.webp` with `_mobile.webp` guarantees an object exists. Use a verified variant where available; otherwise request the verified canonical image key. Use a bundled Android placeholder for missing/default artwork instead of making third-party image requests.
+
+### Android image request/cache path
+
+```text
+Compose image component
+   ↓
+Singleton Coil ImageLoader
+   ├─ memory-cache hit → display
+   ├─ disk-cache hit → display
+   └─ local miss
+        ↓ GET the same canonical website image URL
+     Cloudflare custom domain: images.lpuevents.live
+        ├─ edge HIT / eligible stale response → serve cached bytes
+        └─ MISS → Smart Tiered Cache → R2 object read
+                (R2 internet egress charge remains $0)
+        ↓
+     decode at requested pixel size
+        ↓
+     Coil memory + disk cache
+        ↓
+     display image
+```
+
+Implementation rules:
+
+- Use one application-scoped Coil `ImageLoader`; explicitly configure bounded memory and disk caches. Cache under the canonical immutable URL/object key so all screens reuse one copy. Evict with LRU rather than growing the cache indefinitely.
+- Request image dimensions suitable for the actual component: small card image for list cells and the verified higher-resolution asset for an event-detail view. Do not download a high-resolution hero/banner for every small card.
+- Prefer stable, content-addressed R2 image URLs that are unique when image bytes change and carry `Cache-Control: public, max-age=31536000, immutable`. Do not append random query strings, timestamps, or cache-busting parameters.
+- Do not issue HEAD requests to check image existence on every launch or list bind. Validate/correct URLs in the publishing pipeline and use the image loader's ordinary GET/error result.
+- Do not use a Worker, Supabase Storage proxy, app-specific edge function, or third-party image transformation service for image GETs. Do not ask Supabase for new image bytes after the app already has the image URL.
+- The mobile app's local memory/disk cache is device storage and does not consume Cloudflare or Supabase service quotas. Browser cache and Android's Coil cache are separate, but both benefit from the shared Cloudflare CDN.
+- A CDN cold miss is allowed: it may read the object from R2, but the R2 egress fee is still $0. The objective of CDN/device caching is to reduce origin-read operations and latency; zero egress cost does not depend on achieving a particular cache-hit ratio.
+- Confirm that website fallback URLs are first-party or bundled artwork. Existing shared resolver code can preserve arbitrary absolute URLs, including Unsplash. To keep app image traffic on the controlled first-party path, migrate production fallback images to R2/website static assets or use a bundled placeholder in Android.
+
+### What “100% free” means here
+
+Cloudflare R2's current pricing explicitly lists internet egress as free with no egress allowance. Therefore, delivery of image bytes from the existing R2 bucket to the Android app has **$0 egress cost**, even if a request is a CDN miss. This is the correct zero-bandwidth-cost architecture and it matches the website's existing image hosting. Official pricing: https://developers.cloudflare.com/r2/pricing/
+
+R2 is not an unlimited free object-operation service: Standard storage includes 10 GB-month, 1 million Class A requests, and 10 million Class B requests each month; excess storage/operations can be billed. The Android app itself creates no image-upload/Class A writes, but a cold cache miss can consume a Class B read. Cloudflare CDN and Tiered Cache reduce those reads; they cannot mathematically guarantee zero Class B overages under arbitrary traffic or abusive cache-busting.
+
+If the requirement is literally that **no image-view request may ever incur any request-based fee even beyond R2's included operations**, the app would need a Cloudflare Pages static-asset mirror instead of live R2 URLs. Static Pages asset requests/bandwidth are free, but each site is limited to 20,000 files, 25 MiB per file, and 500 builds/month. New images would become available only after a batched static deployment; if an image is absent from the mirror, the app must show its bundled placeholder and must not fall back to R2. That is a different publishing architecture and is not the default because the current LPU Events website publishes media dynamically through R2.
+
+**Chosen default:** reuse `images.lpuevents.live`, add Coil memory/disk caching, and rely on R2's guaranteed $0 egress with monitoring for the finite R2 free operation/storage allowances. Do not duplicate images into Pages unless the owner decides the stricter no-request-charge guarantee is worth the deployment delay and static-file limits.

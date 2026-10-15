@@ -110,9 +110,11 @@ Create a dedicated public snapshot bucket in the existing Cloudflare account, wi
 - Public clients can GET approved snapshot objects only.
 - Snapshot writes are server-side only. R2 credentials must never be embedded in the APK, Student Website, or Admin Website.
 - Store JSON with Content-Type: application/json and explicit Cache-Control metadata.
-- Use immutable, versioned object names for snapshot payloads. A new payload must not overwrite an immutable object.
-- Use a small mutable manifest/current pointer with short CDN TTL. On publish, update the immutable payload first and publish the pointer last.
-- Use targeted cache purge for mutable pointer URLs where practical. Expiration remains the fallback if invalidation fails.
+- **Required Cloudflare setting:** add a Cache Rule scoped only to the dedicated snapshot hostname and approved `/snapshots/*` JSON paths, with cache eligibility enabled (Cache Everything for JSON, which Cloudflare does not cache by default). Match GET/HEAD only. Never apply this rule broadly to Supabase, admin routes, authenticated content or mutation routes.
+- Use immutable, content/version-addressed object names for snapshot payloads. A new payload must never overwrite an immutable object.
+- Use a small mutable manifest/current pointer with `Cache-Control: public, max-age=60, stale-while-revalidate=300, stale-if-error=86400`. Do not combine `s-maxage` with `stale-while-revalidate`.
+- Publish the immutable payload first and the mutable manifest last. Use targeted purge for the manifest after a successful publication where practical; TTL and stale-if-error are fallback behavior, not the primary update mechanism.
+- Enable Cloudflare Tiered Cache on the snapshot hostname where available on the existing Free plan. Verify actual `CF-Cache-Status` values; a Cache Rule alone is not proof of a HIT.
 - CDN and R2 caches are disposable. PostgreSQL is still authoritative.
 
 Recommended object families:
@@ -130,7 +132,7 @@ Do not duplicate large image binaries inside JSON snapshots; include CDN image U
 
 Use a bounded OkHttp disk HTTP cache for CDN JSON responses where appropriate. Respect server Cache-Control and ETag. Do not configure an HTTP cache that makes private responses public or caches mutation responses. The Room database remains the principal structured-data cache; HTTP cache reduces redundant transfers.
 
-Separate CDN and Supabase cache policies. Indexed search/filter responses must not be shared at the CDN layer.
+All public reads must be cache-first. The app must not query Supabase directly for public discovery data at request time. Search and arbitrary filter combinations must not be cached as separate shared-CDN responses; run them as local indexed Room queries against cached catalog shards. Only approved immutable snapshots and the mutable manifest are fetched from the CDN. This avoids a new origin query for every unique search.
 
 ### Layer C — Room persistent database
 
@@ -167,10 +169,10 @@ Use resource-specific policies instead of a single global TTL.
 | Current event-detail pointer | Short TTL and targeted invalidation | Refresh on detail open if its pointer is stale; use cached detail while loading |
 | Versioned event detail | Immutable, long-lived | Fetch only on version change or cache miss |
 | Public images with immutable media keys | Long-lived, immutable | Coil memory/disk cache; display sized variants |
-| Supabase search/filter queries | No shared CDN cache | Debounced, bounded, cancellable queries; use indexed server queries online |
+| Search/filter | No shared-CDN cache per query | Indexed local Room query over downloaded catalog shards; fetch only missing reusable shards from CDN, never query Supabase per typed character/filter |
 | User-independent UI preferences | Not applicable | DataStore/local state only |
 
-These are initial engineering targets, not immutable settings. Adjust them only after measured freshness, request and egress data. Never allow stale content forever. A cache miss or cache deletion must not break the ability to fetch authoritative content.
+These are initial engineering targets, not immutable settings. Adjust them only after measured freshness, request and egress data. For content freshness, a newly published immutable payload becomes available immediately; the current manifest is then revalidated. Do not let remote stale content persist forever, but keep the last locally stored snapshot when the network is unavailable and disclose its age. A cache miss must not trigger a direct public read from Supabase.
 
 Do not poll resource versions from the app. The app reads the current manifest when its refresh policy says it is due. Do not establish permanent Supabase Realtime connections for public discovery.
 
@@ -203,14 +205,15 @@ Preserve the existing product/API contract:
 - Search uses the existing indexed PostgreSQL search RPC where verified. Do not add Elasticsearch, Algolia or a separate search vendor.
 
 For search/filter traffic:
-- Debounce typing by approximately 300–400 ms.
-- Start network search after a short minimum query length (initial target: 2 characters), then tune from observed request volume.
-- Cancel the previous request when a new query is submitted.
-- Select only fields needed for result cards; never use select-all on hot public endpoints.
-- Cap result page size (initial target: 10–20), validate parameters server-side and avoid unbounded offsets/deep pagination.
-- Do not cache search results at the shared CDN. Coalesce identical in-flight requests, but do not create persistent server-side caches for arbitrary filter combinations.
-- Use Room data for immediate/offline display where available; refresh from the indexed query when online and display a stale/offline indicator when authoritative results cannot be refreshed.
-- Do not silently represent a local, incomplete cache as the complete result set.
+- Perform search and filtering locally against a compact, indexed Room catalog by default; this gives repeated queries zero network requests and avoids uncached Supabase traffic.
+- Populate the catalog from versioned, shared CDN snapshot shards: active/upcoming events first, then past-event shards by month/year as the user browses or explicitly expands historical search scope.
+- Each shard is reusable public data with an immutable URL. Do not cache arbitrary query strings or filter combinations at the shared CDN.
+- Debounce local typing only to protect UI work; cancel obsolete computation when the query changes. No network request per keystroke.
+- When the user expands a range not on the device, request that fixed catalog shard once, share the in-flight request with other screens, merge it into Room and run the query locally.
+- Keep the Event Hub's configurable initial page size and “Show More” behavior; query Room with stable ordering and indexed predicates.
+- If a query truly cannot be satisfied because the required catalog shard is not yet available, request the reusable shard from the CDN. Do not bypass the CDN and do not call Supabase directly from the app for public discovery.
+- Show the last known result set while a shard refreshes. If no prior content exists on a cold install, show a loading state for the single required CDN fetch and then persist the result.
+- Never silently treat a partial local historical catalog as the complete historical result set; track loaded date ranges and show which scope is available offline.
 
 ## 9. Free-tier budget and guardrails
 
@@ -327,3 +330,95 @@ The architecture is acceptable for the first release only if:
 - Cloudflare R2 pricing: https://developers.cloudflare.com/r2/pricing/
 - Cloudflare Workers limits: https://developers.cloudflare.com/workers/platform/limits/
 - PostHog pricing: https://posthog.com/pricing
+
+
+## 16. Non-negotiable cache-first contract and 99.9% target
+
+This section is the controlling policy wherever earlier text conflicts with it. The goal is that students see already-cached content while freshness work happens behind the scenes, and that student traffic never regenerates public content by repeatedly querying Supabase.
+
+### 16.1 Define the target correctly
+
+- **Primary cost protection (hard design rule):** no public student screen/request may query Supabase directly at request time. Public reads come from local Room/browser storage or the shared Cloudflare CDN backed by already-published R2 snapshots. Supabase is queried by the backend snapshot builder only after committed mutations and necessary time rollovers. This keeps student opens, scrolling, repeated browsing and search typing off the Supabase read path.
+- **Performance target:** at least 99.9% of eligible steady-state public snapshot and media GETs should be served from Cloudflare cache (including `HIT` and stale-while-revalidate `UPDATING` responses) over a rolling 30-day window after warm-up. This is a target to measure, not a guarantee: new/rare objects, cache eviction, new Cloudflare locations, cache purges and cold installs cause misses.
+- **User-visible target:** on any device with a valid local snapshot, render it immediately. Never blank a populated screen or block it waiting for the network. A new install without local data may have to wait for its first CDN fetch; the request must still be for a precomputed R2 object, not a live Supabase query.
+- Do not describe these as 99.9% Supabase-cache hits. The protected metric is public-client reads served from local/CDN cache, while the most important database metric is zero Supabase requests triggered directly by student viewing.
+
+### 16.2 Request path and cache-miss behavior
+
+Normal request path:
+
+```text
+Student opens Home / Explore / Event Details
+   ↓
+Show Room's last valid data immediately (if present)
+   ↓
+Check in-memory manifest freshness
+   ↓ only when manifest refresh is due
+Request one shared mutable manifest URL
+   ↓
+Cloudflare edge cache
+   ├─ HIT / UPDATING → receive cached manifest immediately
+   └─ MISS → fetch the tiny manifest from R2, not Supabase
+   ↓
+Compare versions to local snapshot metadata
+   ├─ unchanged → no further requests
+   └─ changed → request only affected immutable snapshot URLs
+                  ↓
+             CDN cache / Tiered Cache
+                  ↓ cache miss only
+             pre-generated R2 object (no database work)
+                  ↓
+             validate schema + checksum/version
+                  ↓
+             transactionally update Room
+                  ↓
+             Compose renders latest Room data
+```
+
+Rules:
+1. A screen must never independently request the same resource if an identical request is already in flight. The repository maintains one in-flight job per normalized snapshot key and shares its result among callers.
+2. A cache miss on the read path does **not** trigger snapshot generation. Snapshot payloads already exist in R2 before their manifest references them.
+3. Snapshot generation is single-flight on the publisher side: use a unique outbox work key such as `resource + target_version`, an atomic claim/lease, and idempotent writes. Multiple invalidation events for the same target version are coalesced into one build.
+4. If a published pointer is missing, malformed or temporarily unavailable, keep the previous valid local snapshot and report the failure to monitoring. Do not issue a direct Supabase query from the student client as a fallback. A first-install cold start shows a retryable loading/error state rather than inventing empty content.
+5. Concurrent cold CDN requests may still cause more than one edge data centre to fetch the same object from R2; CDN caching and Tiered Cache reduce this. **The guarantee is one database-backed snapshot build per resource/version, not a mathematically guaranteed single HTTP packet across the entire global CDN.** R2 reads have free internet egress; they must still be kept within the R2 operation allowance.
+6. Use stale-while-revalidate for mutable manifest responses so requests receive the old manifest during background revalidation. Keep immutable content URLs unchanged forever; a published change gets a new URL and a new manifest.
+7. Never use a timed polling loop, per-screen Supabase request, Realtime subscription, cache-busting query string, or random URL that defeats shared-cache reuse.
+
+### 16.3 Cache object and cache-rule contract
+
+- Connect the snapshot R2 bucket to a custom Cloudflare domain; do not use the development `r2.dev` hostname for production.
+- Add an explicit Cache Rule for approved JSON snapshot paths. Cloudflare's default R2 caching does not cache HTML/JSON unless cache eligibility is configured. Restrict the rule to GET/HEAD, the known public snapshot hostname, and explicit snapshot prefixes.
+- Use content-addressed/versioned names such as `/snapshots/events/catalog-v42.json` and `/snapshots/events/evt_<id>-v<version>.json`, with `Cache-Control: public, max-age=31536000, immutable`. Do not overwrite these paths.
+- The mutable `/manifest/current.json` receives a short freshness lifetime and bounded stale revalidation/error behavior. Do not use shared-cache directives that disable stale-while-revalidate.
+- Ensure cache key URLs are deterministic: no timestamps, random parameters, user IDs, session tokens or unnecessary query parameters. The same public resource must resolve to the same URL for all students.
+- Enable the Free-plan Tiered Cache topology if available in the zone. Treat a cache rule as configuration, not proof; inspect `CF-Cache-Status` and Cloudflare analytics to confirm actual HIT/UPDATING/MISS behavior.
+- Cache only public, sanitized data. Never apply these cache rules to Supabase authenticated APIs, Admin Website endpoints, or responses that may contain private data.
+
+### 16.4 Warm-up and mutation behavior
+
+- Before publishing a new manifest pointer, ensure every referenced immutable object has been written and successfully verified in R2.
+- After publishing, warm the high-priority mutable manifest and hottest new/updated object through its public Cloudflare URL. Warm the homepage, carousel, categories, compact current/upcoming catalog and recently published event detail; do not attempt to prewarm every old archive object.
+- Rebuild only dependencies affected by the transaction: event detail, compact catalog shard(s), applicable category shard, homepage/featured/carousel projection, advertisement placement or date-bucket shard. Batch events so rapid admin edits do not cause repeated builds.
+- Keep old immutable snapshots until their retention policy allows deletion; a client may still be reading an older manifest during propagation. Purge only mutable pointer URLs or an emergency object when necessary.
+- Schedule deterministic time-rollover publications for Asia/Kolkata so “today”, “tomorrow”, event status transitions and ad windows stay correct without clients polling.
+
+### 16.5 Search without uncached request storms
+
+The target depends on not making each distinct search query a unique network cache key. Use the compact cached event index in Room and local indexed search/filter first. Fetch reusable time-partitioned historical catalog shards from CDN on demand. Arbitrary search result combinations are not shared-CDN cache objects. This preserves the no-per-query-server-cache policy while making normal discovery requests cache hits at the local database layer.
+
+If product requirements later demand global full-history search before any archive shard is loaded, that is a new query/API requirement. Do not silently add a live uncached Supabase query; implement a precomputed, versioned search index shard design and quota-test it first.
+
+### 16.6 Observability and release gate
+
+Record cache outcomes using Cloudflare analytics and sampled diagnostic data already present in responses. Do not send an extra telemetry request for each cache hit.
+
+Track separately:
+- CDN `HIT` and `UPDATING` rate for eligible snapshot/media GETs.
+- CDN `MISS`, `BYPASS` and `DYNAMIC` counts and their URL classes.
+- Supabase egress split into cached and uncached egress; DB query volume and Edge Function invocations from the snapshot publisher.
+- R2 Class A/B operations and snapshot bytes written/read.
+- Android Room hit rate, fresh/stale render count, manifest checks per active session, snapshot fetch count and duplicate-request-coalescing count.
+
+Alert when eligible steady-state CDN cache hit rate falls below 99.9% over the defined measurement window, when a known snapshot path is bypassing cache, when Supabase egress exceeds 50% of its monthly allowance, or when R2/Workers/analytics quotas reach the warning threshold. Diagnose MISS and BYPASS reasons before increasing TTL or adding infrastructure.
+
+Release is blocked until production-like tests prove that 5,000-student traffic patterns can browse Home, Explore, details, categories and past-event shards without direct client-origin Supabase reads; that a burst of simultaneous requests causes one publisher build per resource/version; and that the edge hit ratio approaches the 99.9% target on the warmed steady-state workload.
